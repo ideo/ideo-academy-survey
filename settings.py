@@ -3,7 +3,7 @@ import pathlib
 DATA_PATH = pathlib.Path("dropbox/data")
 BASE_CSV_PATH = DATA_PATH / "valid_responses_clustered_by_purchase_management.csv"
 
-qualtrics_drop_cols = [
+QUALTRICS_DROP_COLS = [
     "Response Type",
     "Start Date",
     "End Date",
@@ -24,7 +24,7 @@ qualtrics_drop_cols = [
 ]
 
 
-skip_cols = [
+SKIP_COLS = [
     "Unnamed: 0", 
     "Progress",
     "Finished",
@@ -59,18 +59,18 @@ skip_cols = [
 ]
 
 #skip for now
-multiselect_cols = [
+MULTISELECT_COLS = [
     "Which of the following business approaches do you use (or aspire to use) at your organization?",
     "What type of impact are you are trying to achieve in your work? Choose your top 3.",
     "What skill building topics are most relevant to your team(s) today? Select the top 3. - Selected Choice",
     "What skill building topics are most relevant to your team(s) today? Select the top 3. - Other - Text",
     "Here is a list of benefits this concept is supposed to deliver. Please choose the 3 most important benefits to you.",
-    'What level within your organization is the concept "Learn While Doing" for? Check all that apply."',
+    'What level within your organization is the concept "Learn While Doing" for? Check all that apply.',
     'Which teams in your organization do you see the concept "Learn While Doing" being most relevant for? Check all that apply'
 ]
 
 #skip for now
-agree_disagree_cols = [
+AGREE_DISAGREE_COLS = [
     "Evaluate your organization in terms of the following statements: - We are an established company",
     "Evaluate your organization in terms of the following statements: - We are a new venture",
     "Evaluate your organization in terms of the following statements: - We were recently acquired",
@@ -83,8 +83,8 @@ agree_disagree_cols = [
     "Evaluate your organization in terms of the following statements: - We hire people to solve problems",
 ]
 
-
-importance_cols = [
+#skip for now
+IMPORTANCE_COLS = [
     "How important are the following additional features to you? - Modules for training internal facilitators",
     "How important are the following additional features to you? - Network of external certified coaches for hire",
     "How important are the following additional features to you? - Vision-setting coached session with leadership",
@@ -92,7 +92,7 @@ importance_cols = [
 ]
 
 
-standard_dummy_cols = {
+STANDARD_DUMMY_COLS = {
     "Which business function best describes your core responsibility?":"empFunc",
     "What best describes your company size?":"bizSize",
     "What best describes your role in building capabilities within your organization?  Select the most relevant.": "buildCapability",
@@ -108,7 +108,7 @@ standard_dummy_cols = {
 }
 
 #target columns
-utility_score_cols = [
+UTILITY_SCORE_COLS = [
  "Equip your workforce with modern skills while solving your organization's top strategic challenges",
  "Build new capabilities while doing the work that matters to your team",
  "Hone your team's ability to continually experiment and build on the resulting knowledge",
