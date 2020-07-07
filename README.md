@@ -16,7 +16,7 @@ survey regression analysis
     ```
 
 ## data access
-1. Create a symlink to dropbox folder that contains all of the data. (Make sure you also have access to this dropbox folder). 
+1. Create a symlink to [the dropbox folder](https://www.dropbox.com/home/IDEO-Academy-Survey) that contains all of the data. (Make sure you also have access to this dropbox folder). 
    ```
    ln -s ~/Dropbox\ \(IDEO\)/IDEO-Academy-Survey/ dropbox
    ```
