@@ -2,6 +2,7 @@ import pathlib
 
 DATA_PATH = pathlib.Path("dropbox/data")
 BASE_CSV_PATH = DATA_PATH / "valid_responses_clustered_by_purchase_management.csv"
+CRUNCHBASE_2015_PATH = DATA_PATH / "crunchbase2015"
 
 QUALTRICS_DROP_COLS = [
     "Response Type",
