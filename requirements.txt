@@ -1,5 +1,7 @@
+ipdb
 jupyter
 matplotlib
 pandas
 seaborn
+sklearn
 statsmodels
