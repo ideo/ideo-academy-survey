@@ -93,15 +93,51 @@ def map_docs_to_hash_table(lsh_matrix, hash_size = 8, proj_seed = None):
     return hash_table
 
 
+def choose_random_hash(hash_table, choice_seed = None):
+    np.random.seed(choice_seed)
+    table_keys = [k for k in hash_table.keys()]
+    return np.random.choice(table_keys, size = 1).item(0)
+
+
+def choose_hashed_companies(hash_table, hash_key = None,
+     sample_size = 10, choice_seed = None):
+    if hash_key is None:
+        hash_key = choose_random_hash(hash_table, choice_seed)
+    np.random.seed(choice_seed)
+    hash_bucket = hash_table[hash_key]
+    return np.random.choice(hash_bucket, size = sample_size, replace = False)
+
+
+def inspect_lsh_buckets(hash_table, sample_size, df, hash_key = None, 
+     key_seed = None, company_seed = None):
+    if hash_key is None:
+        hash_key = choose_random_hash(hash_table = hash_table, 
+            choice_seed = key_seed)
+    bucket_size = len(hash_table[hash_key])
+    print(f"{bucket_size} companies ended up in bucket {hash_key}")
+    h_choices = choose_hashed_companies(hash_table = hash_table,
+         hash_key = hash_key, sample_size = sample_size, 
+         choice_seed = company_seed)
+    print(f"Sample company IDs: {h_choices}")
+    print("FIRST COMPANY")
+    display_company_info(h_choices[0], df)
+    print()
+    print("'SIMILAR' COMPANIES")
+    for comp in h_choices[1:]:
+        display_company_info(comp, df)
+
+
+def summarize_lsh_bucket():
+    pass
+
 
 if __name__ == "__main__":
     df = get_company_df()
     #display_random_companies(sample_size = 10, df = df)
     lsh_matrix = make_lsh_doc_matrix(df)
     lsh_tbl = map_docs_to_hash_table(lsh_matrix, hash_size = 8, proj_seed = 66)
-    # ipdb.set_trace()
-    print(f"Some Companies in bucket 00110111:\n {lsh_tbl['00110111'][:8]}")                                                                                                                                                                                
-    display_company_info(8, df)   
-    for ind in [21, 121, 136, 170, 225, 228, 283]:
-        display_company_info(ind, df)   
+   
+    inspect_lsh_buckets(hash_table = lsh_tbl, sample_size = 9, 
+        df = df)
+    ipdb.set_trace()   
     
