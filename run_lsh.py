@@ -11,6 +11,7 @@ from settings import CRUNCHBASE_2015_PATH
 
 
 def get_company_df():
+    # MOVE TO PREPROCESS CRUNCHBASE
     csv_path = CRUNCHBASE_2015_PATH / "companies.csv"
     df = pd.read_csv(csv_path)
     df = df.loc[pd.notnull(df.category_list)]
