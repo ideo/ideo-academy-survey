@@ -12,7 +12,6 @@ CSV_NAMES_2015 = ["acquisitions",
     "investments",
     "rounds"
 ]
-
 TSV_LABELS_2020 = ["Coaching",
     "Collaboration",
     "E-learning",
@@ -33,27 +32,12 @@ TSV_LABELS_2020 = ["Coaching",
     "Training",
     "Crunchbase Top 1000"
 ]
-
-#This may change once we've worked our way through all of the categories
 CATEGORY_DDUP_COLS = ["Organization Name",
     "Organization Name URL",
     "CB Rank (Company)"
 ]
-
+DROP_COUNTRIES = ["China", "Russia", "India"]
 CATEGORY_DDUP_SORT = [True, True, True]
-
-
-KEEP_COLUMNS = ["Organization Name",
-    "Organization Name URL",
-    "Industries",
-    "Headquarters Location", 
-    "Description",
-    "CB Rank (Company)",
-    "recent_funding",
-    "recent_founding",
-    "revenue_note"
-]
-
 FINAL_GROUP_BY = ["Organization Name", "Organization Name URL"]
 FINAL_AGG = {
     "Industries":"max",
@@ -64,12 +48,20 @@ FINAL_AGG = {
     "recent_founding":"max",
     "revenue_note":"max"
 }
-
-def extract_categories(category_str, delim = "|"):
-    '''Meant to be applied along a particular column'''
-    if pd.isnull(category_str):
-        return []
-    return [v.replace(" ","") for v in category_str.split(delim)]
+FINAL_COLNAMES = {"Organization Name":"org_name",
+    "Organization Name URL":"org_url",
+    "Industries":"industry_tags",
+    "Headquarters Location":"hq_loc", 
+    "Description":"description",
+    "CB Rank (Company)":"cb_rank"
+}
+DOCUMENT_COLNAMES = ["clean_tags", 
+    "description",
+    "recent_founding",
+    "recent_funding",
+    "revenue_note"
+]
+PROCESSED_TSV_NAME = "crunchbase2020_processed.tsv"
 
 
 def add_recent_founding_column(df):
@@ -88,8 +80,45 @@ def add_revenue_note_column(df, over = False):
     return df
 
 
-def dedupe_dataframes(list_of_dfs, sort_col_list = CATEGORY_DDUP_COLS,
-     sort_bool_list = CATEGORY_DDUP_SORT):
+def handle_crunchbase_rank_column(df, fillval = "999,999,999"):
+    cb_col = "CB Rank (Company)"
+    df[cb_col].fillna(fillval, inplace = True)
+    try:
+        df[cb_col] = df[cb_col].str.replace(",","").astype(int)
+    except AttributeError:
+        df[cb_col] = df[cb_col].astype(int)
+
+
+def remove_country_rows(df, countries):
+    df["country"] = df["hq_loc"].apply(lambda s: s.split(", ")[-1])
+    return df.loc[~df.country.isin(countries)].drop(labels = "country", axis = 1)
+
+
+def add_document_column(df, component_col_list):
+    df["document"] = df[component_col_list].agg(" ".join, axis = 1)
+
+
+def clean_category_tags(tags_str, in_delim = ", ", out_delim = " "):
+    '''Meant to be applied along a particular column that contains
+    the industry/category tags. Returns a string itself
+
+    N.B. for the 2015 data, in_delim is a pipe
+    '''
+    if pd.isnull(tags_str):
+        return ""
+    cleaned_tags = []
+    for tag in tags_str.split(in_delim):
+        tag = tag.replace("&", "_and_")
+        for under_punc in "- ":
+            tag = tag.replace(under_punc, "_")
+        for strip_punc in "/'()":
+            tag = tag.replace(strip_punc, "")
+        cleaned_tags.append(tag)
+    return out_delim.join(cleaned_tags)
+
+
+def dedupe_dataframes(list_of_dfs, sort_col_list = CATEGORY_DDUP_COLS, 
+    sort_bool_list = CATEGORY_DDUP_SORT):
     combined_df = pd.concat(objs = list_of_dfs, axis = 0)
     print(f"{len(combined_df)} rows before deduplication")
     combined_df.sort_values(by = sort_col_list,
@@ -102,18 +131,14 @@ def dedupe_dataframes(list_of_dfs, sort_col_list = CATEGORY_DDUP_COLS,
     return ddup_df
 
 
-def process_dataframes_by_file_category(tsv_label, 
+def process_files_by_category(tsv_label, 
     base_path = CRUNCHBASE_2020_PATH):
     category_dfs = []
     category_paths = [c for c in base_path.glob(f"*{tsv_label}*.tsv")]
     for path in category_paths:
         df = pd.read_table(path)
         # MAKE ME A HANDLE CB RANK FUNCTION
-        df["CB Rank (Company)"] = df["CB Rank (Company)"].fillna("999,999,999")
-        try:
-            df["CB Rank (Company)"] = df["CB Rank (Company)"].str.replace(",","").astype(int)
-        except AttributeError:
-            df["CB Rank (Company)"] = df["CB Rank (Company)"].astype(int)
+        handle_crunchbase_rank_column(df = df, fillval = "999,999,999")
         file_stem = path.stem
         if "Founded" in file_stem:
             print("\tAdding recent_founding note ...")
@@ -136,22 +161,48 @@ def process_dataframes_by_file_category(tsv_label,
     return dedupe_dataframes(list_of_dfs = category_dfs)
 
 
+def process_crunchbase2020_data(category_labels = TSV_LABELS_2020,  
+    base_path = CRUNCHBASE_2020_PATH, grp_cols = FINAL_GROUP_BY,
+    agg_dct = FINAL_AGG, out_names = FINAL_COLNAMES,
+    remove_countries = DROP_COUNTRIES, doc_cols = DOCUMENT_COLNAMES,
+    write_result = True, save_name = PROCESSED_TSV_NAME):
+    crunchbase_dfs = []
+    for label in category_labels:
+        print(label)
+        cb_df = process_files_by_category(tsv_label = label, 
+            base_path = base_path)
+        crunchbase_dfs.append(cb_df)
+    stack_df = pd.concat(objs = crunchbase_dfs, axis = 0)
+    print(f"{len(stack_df)} rows before aggregation")
+    stack_df.fillna("", inplace = True)
+    final_df = stack_df.groupby(by = grp_cols, as_index = False).agg(agg_dct)
+    final_df.rename(columns = out_names, inplace = True)
+    print(f"{len(final_df)} rows after aggregation")
+    final_df["clean_tags"] = final_df["industry_tags"].apply(clean_category_tags)
+    final_df = remove_country_rows(df = final_df, countries = remove_countries)
+    print(f"{len(final_df)} rows after excluding {', '.join(remove_countries)}")
+    final_df["document"] = final_df[doc_cols].apply(" ".join, axis = 1)
+    final_df.reset_index(inplace = True)
+    out_path = base_path / save_name
+    if not out_path.exists() and write_result:
+        print(f"Saving processed 2020 data to {str(out_path)}")
+        final_df.to_csv(path_or_buf = out_path, sep = "\t",
+            index = False, header = True)
+    return final_df
         
+
+def get_crunchbase2020_data(base_path = CRUNCHBASE_2020_PATH, 
+    save_name = PROCESSED_TSV_NAME):
+    check_path = base_path / save_name
+    if check_path.is_file():
+        print("LOADING PRE-PROCESSED DATA")
+        return pd.read_table(check_path)
+    print("!!! RUNNING 2020 PROCESSING PIPELINE !!!")
+    return process_crunchbase2020_data(write_result = True)
 
 
 if __name__ == "__main__":
     
     #MAIN FUNCTION FOR 2020
-    all_the_dfs = []
-    for lbl in TSV_LABELS_2020:
-        print(lbl)
-        cat_df = process_dataframes_by_file_category(tsv_label = lbl)
-        all_the_dfs.append(cat_df)
-    foo_df = pd.concat(objs = all_the_dfs, axis = 0)
-    # ipdb.set_trace()
-    foo_df.fillna("", inplace = True)
-    # ipdb.set_trace()
-    bar_df = foo_df.groupby(by = FINAL_GROUP_BY, as_index = False).agg(FINAL_AGG) 
-    # Rename columns
-    # boot out china russia and india
-    # make document columns  
+    foo_df =  get_crunchbase2020_data()
+    ipdb.set_trace() 
