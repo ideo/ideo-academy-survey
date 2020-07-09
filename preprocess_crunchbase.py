@@ -182,7 +182,7 @@ def process_crunchbase2020_data(category_labels = TSV_LABELS_2020,
     final_df = remove_country_rows(df = final_df, countries = remove_countries)
     print(f"{len(final_df)} rows after excluding {', '.join(remove_countries)}")
     final_df["document"] = final_df[doc_cols].apply(" ".join, axis = 1)
-    final_df.reset_index(inplace = True)
+    final_df.reset_index(drop = True, inplace = True)
     out_path = base_path / save_name
     if not out_path.exists() and write_result:
         print(f"Saving processed 2020 data to {str(out_path)}")
