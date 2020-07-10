@@ -6,6 +6,7 @@ import pandas as pd
 from collections import Counter, defaultdict
 from pprint import pprint
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_distances
 
 from preprocess_crunchbase import get_crunchbase2020_data
 
@@ -100,8 +101,7 @@ def find_term_overlap(index, doc_matrix, feat_array,
     return None if not overlap_terms else ", ".join(overlap_terms) 
 
 
-def display_lsh_member_info(in_df, doc_matrix, feat_array, 
-    overlap_inds):
+def display_company_info(rank, df_index, info_df):
     '''In practice, I would probably only apply this to some subset
     of an entire hash bucket
     '''
@@ -113,25 +113,24 @@ def display_lsh_member_info(in_df, doc_matrix, feat_array,
         "recent_funding",
         "recent_founding"
     ]
-    for i, j in enumerate(in_df.index.tolist()):
-        for col in display_cols:
-            display_val = in_df.at[j, col]
-            if pd.isnull(display_val):
-                continue
-            if col == "cb_rank":
-                display_val = f"{display_val:,}"
-            display_name = " ".join([v.title() for v in col.split("_")])
-            if col == "org_name":
-                display_name = f"{i + 1}. {display_name}"
-            print(f"\t\t{display_name}: {display_val}")
-        common_terms = find_term_overlap(index = j, 
-            doc_matrix = doc_matrix, 
-            feat_array = feat_array, 
-            overlap_inds = overlap_inds)
-        if common_terms is not None:
-            print(f"\t\tTerms in Common: {common_terms}")
-        print()
+    for col in display_cols:
+        display_val = info_df.at[df_index, col]
+        if pd.isnull(display_val):
+            continue
+        if col == "cb_rank":
+            display_val = f"{display_val:,}"
+        display_name = " ".join([v.title() for v in col.split("_")])
+        if col == "org_name":
+            display_name = f"{rank}. {display_name}"
+        print(f"\t\t{display_name}: {display_val}")
 
+
+def get_cosine_neighbors(vp_vector, comparison_vectors,
+        n_neighbors=20):
+    dist_mat = cosine_distances(vp_vector, comparison_vectors).flatten()
+    nearest_inds = np.argsort(dist_mat)[:n_neighbors]
+    sim_scores = 1 - dist_mat[nearest_inds]
+    return nearest_inds, sim_scores
 
 
 
@@ -152,6 +151,7 @@ if __name__ == "__main__":
     vp_keys = get_new_document_lookup_key(doc_matrix = vp_matrix,
         hash_size = N_BITS, proj_seed = SEED)
     vectorizer_features = np.array(base_vectorizer.get_feature_names())
+
     for i, key in enumerate(vp_keys):
         vp_nonzero_inds = np.nonzero(vp_matrix[i])[1]
         print(f"Value Prop {i + 1}: {VALUE_PROPS[i]}")
@@ -160,11 +160,42 @@ if __name__ == "__main__":
         print(f"Fell in hash bucket {key} with {len(hash_set_df)} other companies")
         tag_freq = get_tag_frequency(in_df = hash_set_df)
         print("--"*10,"\n")
+
         term_prev = get_term_prevalence(in_df = hash_set_df, 
             doc_matrix = lsh_matrix, feat_array = vectorizer_features)
         print("--"*10,"\n")
+        
         top_N_df = hash_set_df.sort_values(by = "cb_rank").head(TOP_N)
         print(f"\tDetail on top {TOP_N} companies by CB Rank")
-        display_lsh_member_info(in_df = top_N_df, doc_matrix = lsh_matrix, 
-            feat_array = vectorizer_features, 
-            overlap_inds = vp_nonzero_inds)
+        for rank, index in enumerate(top_N_df.index.tolist()):
+            display_company_info(rank = rank + 1, df_index = index,
+                info_df = top_N_df)
+            common_terms = find_term_overlap(index = index,
+                doc_matrix = lsh_matrix, 
+                feat_array = vectorizer_features,
+                overlap_inds=vp_nonzero_inds)
+            if common_terms is not None:
+                print(f"\t\tCommon Terms: {common_terms}")
+            print()
+
+        neighbor_inds, sim_scores = get_cosine_neighbors(vp_matrix[i], 
+            comparison_vectors = lsh_matrix, n_neighbors = TOP_N)
+        print(f"\tDetail on top {TOP_N} companies by Term Similarity")
+        for rank, index in enumerate(neighbor_inds):
+            display_company_info(rank = rank + 1, df_index = index,
+                info_df = base_df)
+            print(f"\t\tSimilarity Score: {sim_scores[rank]:.4f}")
+            common_terms = find_term_overlap(index = index,
+                doc_matrix = lsh_matrix, 
+                feat_array = vectorizer_features,
+                overlap_inds=vp_nonzero_inds)
+            if common_terms is not None:
+                print(f"\t\tCommon Terms: {common_terms}")
+            neighbor_key = get_new_document_lookup_key(doc_matrix = lsh_matrix[index],
+                hash_size = N_BITS, proj_seed = SEED)
+            if neighbor_key in vp_keys:
+                which_vp = vp_keys.index(neighbor_key) + 1
+                print(f"\t\tFalls in the same bucket as value prop {which_vp}")
+            else:
+                print(f"\t\tFalls outside our value prop buckets")
+            print()
