@@ -5,6 +5,9 @@ BASE_CSV_PATH = DATA_PATH / "valid_responses_clustered_by_purchase_management.cs
 CRUNCHBASE_2015_PATH = DATA_PATH / "crunchbase2015"
 CRUNCHBASE_2020_PATH = DATA_PATH / "crunchbase2020"
 
+PLOTS_PATH = pathlib.Path("dropbox/plots")
+CRUNCHBASE_PLOTS_PATH = PLOTS_PATH / "crunchbase_LSH"
+
 QUALTRICS_DROP_COLS = [
     "Response Type",
     "Start Date",
@@ -122,3 +125,25 @@ UTILITY_SCORE_COLS = [
  "Help employees develop customer-centered skills while working towards company strategy",
  "Scale new processes and methodologies across your organization with tools every team will find valuable"
 ]
+
+
+VALUE_PROPS = [
+    '''
+    Get your team’s highest priority job done while learning to work in customer centric ways
+    Skill up for success: Solve your team’s toughest challenges with a modern customer centric approach
+    ''',
+    '''
+    Scale new processes to deliver value to customers
+    Build a high performing culture: Get teams across your organization to adopt new ways of working and 
+    deliver value to your customers
+    ''',
+    '''
+    Lead your organization’s Digital Transformation and create a competitive edge
+    Build a future fit organization: Digitally transform your organization by upskilling your teams
+    ''',
+    '''
+    Develop creative leaders while delivering on top strategic goals
+    Cultivate future leaders: Develop the next generation of leaders while delivering on your organization’s top strategic goals
+    '''
+]
+

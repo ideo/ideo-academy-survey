@@ -8,27 +8,9 @@ from pprint import pprint
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_distances
 
+from settings import VALUE_PROPS
 from preprocess_crunchbase import get_crunchbase2020_data
 
-VALUE_PROPS = [
-    '''
-    Get your team’s highest priority job done while learning to work in customer centric ways
-    Skill up for success: Solve your team’s toughest challenges with a modern customer centric approach
-    ''',
-    '''
-    Scale new processes to deliver value to customers
-    Build a high performing culture: Get teams across your organization to adopt new ways of working and 
-    deliver value to your customers
-    ''',
-    '''
-    Lead your organization’s Digital Transformation and create a competitive edge
-    Build a future fit organization: Digitally transform your organization by upskilling your teams
-    ''',
-    '''
-    Develop creative leaders while delivering on top strategic goals
-    Cultivate future leaders: Develop the next generation of leaders while delivering on your organization’s top strategic goals
-    '''
-]
 
 def map_docs_to_hash_table(lsh_matrix, hash_size = 8, proj_seed = None):
     '''I could probably map this to a broader class that implements this method
@@ -164,7 +146,7 @@ if __name__ == "__main__":
         term_prev = get_term_prevalence(in_df = hash_set_df, 
             doc_matrix = lsh_matrix, feat_array = vectorizer_features)
         print("--"*10,"\n")
-        
+
         top_N_df = hash_set_df.sort_values(by = "cb_rank").head(TOP_N)
         print(f"\tDetail on top {TOP_N} companies by CB Rank")
         for rank, index in enumerate(top_N_df.index.tolist()):
