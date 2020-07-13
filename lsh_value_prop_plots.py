@@ -18,25 +18,28 @@ from lsh_with_value_props import (map_docs_to_hash_table,
 
 
 def make_cross_hash_set_frequency_df(list_of_hash_keys, hash_table, ref_df, 
-    count_tags = True, min_freq_cutoff = 0.1, 
-    doc_matrix = None, feat_array = None):
+    freq_type = "industry", min_freq_cutoff = 0.1, doc_matrix = None,
+    feat_array = None):
     '''With a bit more effort this could probably work for terms as well''' 
     df_entries = [] #{"Value Prop": ,"Industry":, "Pct of Companies"}
     for i, key in enumerate(list_of_hash_keys):
         hash_set_df = get_lsh_member_df(key = key, 
             hash_table = hash_table, ref_df = ref_df)
-        if count_tags:
+        if freq_type == "industry":
             tag_counts = get_tag_frequency(in_df = hash_set_df, 
                 display_top = False)
-            tag_lbl = "industry_tag"
-        else:
-            if (doc_matrix is None or feat_array is None):
-                # TODO (?): Ross maybe support this some day?
-                raise ValueError("MUST SUPPLY VECTORIZER STUFF ...")
+        elif freq_type == "term":
+            if doc_matrix is None:
+                raise ValueError("Plotting terms requires vectorized documents.")
+            if feat_array is None:
+                raise ValueError("Plotting terms requires vocabulary array.")
             tag_counts = get_term_prevalence(in_df = hash_set_df, 
                 doc_matrix = doc_matrix, feat_array = feat_array, 
                 display_top = False)
-            tag_lbl = "term_tag"
+        else:
+            allowed = "either 'industry' or 'terms'"
+            raise ValueError(f"freq_type must be {allowed}, not {freq_type}")
+        tag_lbl = f"{freq_type}_tag"
         for tag, count in tag_counts.most_common(len(tag_counts)):
             pct = count / len(hash_set_df)
             if pct < PCT_THRESHOLD:
@@ -49,6 +52,7 @@ def make_cross_hash_set_frequency_df(list_of_hash_keys, hash_table, ref_df,
                 "pct_firms_in_lsh_set": pct
             })
     return pd.DataFrame(data = df_entries)
+
 
 def order_tags_by_count(df, tag_col, order_asc = False):
     '''Experimental ... not sure it beats the default ordering'''
@@ -105,7 +109,7 @@ if __name__ == "__main__":
 
     N_BITS = 8
     SEED = 666
-    PCT_THRESHOLD = 0.05
+    PCT_THRESHOLD = 0.1 #When using terms, 10% is smarter
     base_df = get_crunchbase2020_data()
     base_vectorizer = CountVectorizer(lowercase = True,
         token_pattern = r"(?u)\b\w\w+\b", min_df = 3,
@@ -117,14 +121,15 @@ if __name__ == "__main__":
     vp_matrix = base_vectorizer.transform(VALUE_PROPS)
     vp_keys = get_new_document_lookup_key(doc_matrix = vp_matrix,
         hash_size = N_BITS, proj_seed = SEED)
-    
+    termspace_vect = np.array(base_vectorizer.get_feature_names())
+
     plot_df = make_cross_hash_set_frequency_df(list_of_hash_keys = vp_keys, 
-        hash_table = lsh_tbl, ref_df = base_df, count_tags = True, 
-        doc_matrix = None, feat_array = None, 
+        hash_table = lsh_tbl, ref_df = base_df, freq_type = "term", 
+        doc_matrix = lsh_matrix, feat_array = termspace_vect, 
         min_freq_cutoff = PCT_THRESHOLD)
 
     plot_tag_frequency_across_lsh_sets(df = plot_df, 
-        tag_col = "industry_tag",
+        tag_col = "term_tag",
         setname_col = "value_prop",
         freq_col = "pct_firms_in_lsh_set",
         tag_ordering = None,
