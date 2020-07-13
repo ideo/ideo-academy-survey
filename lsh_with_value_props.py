@@ -115,6 +115,18 @@ def get_cosine_neighbors(vp_vector, comparison_vectors,
     return nearest_inds, sim_scores
 
 
+def add_simrun_annotations(in_df, value_prop_index, simrun_seed):
+    '''Should allow us to keep track of which companies got paired with
+    which value props across different runs of LSH.
+
+    value prop index is an INDEX, not the actual integer label.
+    '''
+    hash_set_df["value_prop"] = f"Value Prop {i + 1}"
+    hash_set_df["sim_seed"] = simrun_seed
+
+
+def add_cosine_similarity():
+    pass
 
 if __name__ == "__main__":
     
@@ -139,6 +151,9 @@ if __name__ == "__main__":
         print(f"Value Prop {i + 1}: {VALUE_PROPS[i]}")
         hash_set_df = get_lsh_member_df(key = key, 
             hash_table = lsh_tbl, ref_df = base_df)
+        add_simrun_annotations(in_df = hash_set_df, value_prop_index = i,
+            simrun_seed = SEED)
+        ipdb.set_trace()
         print(f"Fell in hash bucket {key} with {len(hash_set_df)} other companies")
         tag_freq = get_tag_frequency(in_df = hash_set_df)
         print("--"*10,"\n")

@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     N_BITS = 8
     SEED = 666
-    PCT_THRESHOLD = 0.1 #When using terms, 10% is smarter
+    PCT_THRESHOLD = 0.05 #When using terms, 10% is smarter
     base_df = get_crunchbase2020_data()
     base_vectorizer = CountVectorizer(lowercase = True,
         token_pattern = r"(?u)\b\w\w+\b", min_df = 3,
@@ -124,12 +124,12 @@ if __name__ == "__main__":
     termspace_vect = np.array(base_vectorizer.get_feature_names())
 
     plot_df = make_cross_hash_set_frequency_df(list_of_hash_keys = vp_keys, 
-        hash_table = lsh_tbl, ref_df = base_df, freq_type = "term", 
+        hash_table = lsh_tbl, ref_df = base_df, freq_type = "industry", 
         doc_matrix = lsh_matrix, feat_array = termspace_vect, 
         min_freq_cutoff = PCT_THRESHOLD)
 
     plot_tag_frequency_across_lsh_sets(df = plot_df, 
-        tag_col = "term_tag",
+        tag_col = "industry_tag",
         setname_col = "value_prop",
         freq_col = "pct_firms_in_lsh_set",
         tag_ordering = None,
