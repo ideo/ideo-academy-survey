@@ -134,8 +134,9 @@ def add_common_term_columns(in_df, doc_matrix, vocab_array, common_inds):
     in_df["n_terms"] = in_df["common_terms"].apply(count_terms)
 
 
-def add_cosine_similarity():
-    pass
+def add_cosine_similarity(in_df, doc_matrix, vp_vector):
+    sim_score = lambda x: (1 - cosine_distances(vp_vector, doc_matrix[x])).item()
+    in_df["term_cosine_sim"] = in_df.index.map(sim_score)
 
 
 if __name__ == "__main__":
@@ -163,6 +164,10 @@ if __name__ == "__main__":
             hash_table = lsh_tbl, ref_df = base_df)
         add_simrun_annotations(in_df = hash_set_df, value_prop_index = i,
             simrun_seed = SEED)
+        add_common_term_columns(in_df = hash_set_df, doc_matrix = lsh_matrix,
+            vocab_array = vectorizer_features, common_inds = vp_nonzero_inds)
+        add_cosine_similarity(in_df = hash_set_df, doc_matrix = lsh_matrix,
+            vp_vector = vp_matrix[i]) 
         ipdb.set_trace()
         print(f"Fell in hash bucket {key} with {len(hash_set_df)} other companies")
         tag_freq = get_tag_frequency(in_df = hash_set_df)
