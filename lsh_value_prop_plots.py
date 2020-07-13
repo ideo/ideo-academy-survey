@@ -19,7 +19,7 @@ from lsh_with_value_props import (map_docs_to_hash_table,
 
 def make_cross_hash_set_frequency_df(list_of_hash_keys, hash_table, ref_df, 
     freq_type = "industry", min_freq_cutoff = 0.1, doc_matrix = None,
-    feat_array = None):
+    vocab_array = None):
     '''With a bit more effort this could probably work for terms as well''' 
     df_entries = [] #{"Value Prop": ,"Industry":, "Pct of Companies"}
     for i, key in enumerate(list_of_hash_keys):
@@ -31,10 +31,10 @@ def make_cross_hash_set_frequency_df(list_of_hash_keys, hash_table, ref_df,
         elif freq_type == "term":
             if doc_matrix is None:
                 raise ValueError("Plotting terms requires vectorized documents.")
-            if feat_array is None:
+            if vocab_array is None:
                 raise ValueError("Plotting terms requires vocabulary array.")
             tag_counts = get_term_prevalence(in_df = hash_set_df, 
-                doc_matrix = doc_matrix, feat_array = feat_array, 
+                doc_matrix = doc_matrix, vocab_array = vocab_array, 
                 display_top = False)
         else:
             allowed = "either 'industry' or 'terms'"
@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
     plot_df = make_cross_hash_set_frequency_df(list_of_hash_keys = vp_keys, 
         hash_table = lsh_tbl, ref_df = base_df, freq_type = "industry", 
-        doc_matrix = lsh_matrix, feat_array = termspace_vect, 
+        doc_matrix = lsh_matrix, vocab_array = termspace_vect, 
         min_freq_cutoff = PCT_THRESHOLD)
 
     plot_tag_frequency_across_lsh_sets(df = plot_df, 

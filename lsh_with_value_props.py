@@ -60,12 +60,12 @@ def get_tag_frequency(in_df, tag_col = "industry_tags", sep = ", ",
     return tag_count
 
 
-def get_term_prevalence(in_df, doc_matrix, feat_array, 
+def get_term_prevalence(in_df, doc_matrix, vocab_array, 
     display_top = True, top_n = 15):
     doc_term_count = Counter()
     for i in in_df.index.tolist():
         term_inds = np.nonzero(doc_matrix[i])[1]
-        doc_terms = feat_array[term_inds].tolist()
+        doc_terms = vocab_array[term_inds].tolist()
         doc_term_count.update(doc_terms)
     if display_top:
         print("\tFREQUENTLY USED TERMS")
@@ -74,11 +74,11 @@ def get_term_prevalence(in_df, doc_matrix, feat_array,
     return doc_term_count
 
 
-def find_term_overlap(index, doc_matrix, feat_array,
+def find_term_overlap(index, doc_matrix, vocab_array,
     overlap_inds):
     term_inds = np.nonzero(doc_matrix[index])[1]
-    doc_terms = set(feat_array[term_inds])
-    ref_terms = set(feat_array[overlap_inds])
+    doc_terms = set(vocab_array[term_inds])
+    ref_terms = set(vocab_array[overlap_inds])
     overlap_terms = list(doc_terms.intersection(ref_terms))
     return None if not overlap_terms else ", ".join(overlap_terms) 
 
@@ -125,8 +125,18 @@ def add_simrun_annotations(in_df, value_prop_index, simrun_seed):
     hash_set_df["sim_seed"] = simrun_seed
 
 
+def add_common_term_columns(in_df, doc_matrix, vocab_array, common_inds):
+    common_terms = lambda x: find_term_overlap(x, doc_matrix,
+        vocab_array, common_inds)
+    count_terms = lambda y: 0 if not y else len(y.split(", "))
+    in_df["common_terms"] = in_df.index.map(common_terms)
+    in_df["common_terms"].fillna("", inplace = True)
+    in_df["n_terms"] = in_df["common_terms"].apply(count_terms)
+
+
 def add_cosine_similarity():
     pass
+
 
 if __name__ == "__main__":
     
@@ -159,7 +169,7 @@ if __name__ == "__main__":
         print("--"*10,"\n")
 
         term_prev = get_term_prevalence(in_df = hash_set_df, 
-            doc_matrix = lsh_matrix, feat_array = vectorizer_features)
+            doc_matrix = lsh_matrix, vocab_array = vectorizer_features)
         print("--"*10,"\n")
 
         top_N_df = hash_set_df.sort_values(by = "cb_rank").head(TOP_N)
@@ -169,7 +179,7 @@ if __name__ == "__main__":
                 info_df = top_N_df)
             common_terms = find_term_overlap(index = index,
                 doc_matrix = lsh_matrix, 
-                feat_array = vectorizer_features,
+                vocab_array = vectorizer_features,
                 overlap_inds=vp_nonzero_inds)
             if common_terms is not None:
                 print(f"\t\tCommon Terms: {common_terms}")
@@ -184,7 +194,7 @@ if __name__ == "__main__":
             print(f"\t\tSimilarity Score: {sim_scores[rank]:.4f}")
             common_terms = find_term_overlap(index = index,
                 doc_matrix = lsh_matrix, 
-                feat_array = vectorizer_features,
+                vocab_array = vectorizer_features,
                 overlap_inds=vp_nonzero_inds)
             if common_terms is not None:
                 print(f"\t\tCommon Terms: {common_terms}")
