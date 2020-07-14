@@ -12,9 +12,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 # AHAHA These imports
 from settings import VALUE_PROPS, CRUNCHBASE_PLOTS_PATH
 from preprocess_crunchbase import get_crunchbase2020_data
-from lsh_with_value_props import (map_docs_to_hash_table, 
-    get_new_document_lookup_key, get_lsh_member_df,
-    get_tag_frequency, get_term_prevalence)
+from lsh_with_value_props import (create_lsh_table, create_company_lsh_inputs, 
+    create_value_prop_lsh_inputs,get_lsh_member_df, get_tag_frequency,
+    get_term_prevalence)
 
 
 def make_cross_hash_set_frequency_df(list_of_hash_keys, hash_table, ref_df, 
@@ -110,22 +110,24 @@ if __name__ == "__main__":
     N_BITS = 8
     SEED = 666
     PCT_THRESHOLD = 0.05 #When using terms, 10% is smarter
+    
     base_df = get_crunchbase2020_data()
     base_vectorizer = CountVectorizer(lowercase = True,
         token_pattern = r"(?u)\b\w\w+\b", min_df = 3,
         stop_words = "english")
     documents = base_df["document"].values.tolist()
-    lsh_matrix = base_vectorizer.fit_transform(documents)
-    lsh_tbl = map_docs_to_hash_table(lsh_matrix = lsh_matrix, 
-        hash_size = N_BITS, proj_seed = SEED)
-    vp_matrix = base_vectorizer.transform(VALUE_PROPS)
-    vp_keys = get_new_document_lookup_key(doc_matrix = vp_matrix,
-        hash_size = N_BITS, proj_seed = SEED)
-    termspace_vect = np.array(base_vectorizer.get_feature_names())
+    
+    lsh_matrix, lsh_vocab = create_company_lsh_inputs(doc_list = documents, 
+        doc_vectorizer = base_vectorizer)
+    lsh_tbl = create_lsh_table(doc_matrix = lsh_matrix, hash_size = N_BITS, 
+        proj_seed = SEED)
+    vp_matrix, vp_keys = create_value_prop_lsh_inputs(vp_list = VALUE_PROPS,
+        fitted_vectorizer = base_vectorizer, hash_size = N_BITS, 
+        proj_seed = SEED)
 
     plot_df = make_cross_hash_set_frequency_df(list_of_hash_keys = vp_keys, 
         hash_table = lsh_tbl, ref_df = base_df, freq_type = "industry", 
-        doc_matrix = lsh_matrix, vocab_array = termspace_vect, 
+        doc_matrix = lsh_matrix, vocab_array = lsh_vocab, 
         min_freq_cutoff = PCT_THRESHOLD)
 
     plot_tag_frequency_across_lsh_sets(df = plot_df, 
