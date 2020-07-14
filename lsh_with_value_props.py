@@ -7,8 +7,9 @@ from collections import Counter, defaultdict
 from pprint import pprint
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_distances
+from tqdm import tqdm
 
-from settings import VALUE_PROPS
+from settings import VALUE_PROPS, CRUNCHBASE_2020_PATH
 from preprocess_crunchbase import get_crunchbase2020_data
 
 
@@ -111,8 +112,8 @@ def add_simrun_annotations(in_df, vp_index, simrun_seed):
 
     value prop index is an INDEX, not the actual integer label.
     '''
-    hash_set_df["value_prop"] = f"Value Prop {i + 1}"
-    hash_set_df["sim_seed"] = simrun_seed
+    in_df["value_prop"] = f"Value Prop {vp_index + 1}"
+    in_df["sim_seed"] = simrun_seed
 
 
 def add_common_term_columns(in_df, doc_matrix, vocab_array, common_inds):
@@ -193,58 +194,70 @@ def display_cosine_similar_companies(in_df, n_display, vp_vector,
         print()
     
 
+def aggregate_lsh_runs(crunchbase_df, vp_list, lsh_vectorizer, num_runs = 100, 
+    hash_size = 8, base_seed = None, write_result = False):
+    documents = crunchbase_df["document"].values.tolist()
+    doc_matrix, doc_vocab = create_company_lsh_inputs(doc_list = documents, 
+        doc_vectorizer = lsh_vectorizer)
+    np.random.seed(base_seed)
+    lsh_seeds = np.random.choice(a = 5000, size = num_runs, replace = False)
+
+    lsh_dfs = []
+    for proj_seed in tqdm(lsh_seeds.tolist()):
+        lsh_tbl = create_lsh_table(doc_matrix = doc_matrix,
+            hash_size = hash_size, proj_seed = proj_seed)
+        vp_matrix, vp_keys = create_value_prop_lsh_inputs(vp_list = vp_list,
+            fitted_vectorizer = lsh_vectorizer, hash_size = hash_size, 
+            proj_seed = proj_seed)
+        for i, key in enumerate(vp_keys):
+            vp_nonzero_inds = np.nonzero(vp_matrix[i])[1]
+            hash_df = get_lsh_member_df(key = key, hash_table = lsh_tbl,
+                ref_df = crunchbase_df)
+            add_simrun_annotations(in_df = hash_df, vp_index = i,
+                simrun_seed = proj_seed)
+            add_common_term_columns(in_df = hash_df, doc_matrix = doc_matrix,
+                vocab_array = doc_vocab, common_inds = vp_nonzero_inds)
+            add_cosine_similarity(in_df = hash_df, doc_matrix = doc_matrix,
+                vp_vector = vp_matrix[i])
+            print(f"\tSaving {len(hash_df)} rows-value prop {i + 1}-LSH{proj_seed}")
+            lsh_dfs.append(hash_df)
+    
+    lsh_run_df = pd.concat(objs = lsh_dfs, axis = 0)
+    lsh_run_df["company_index"] = lsh_run_df.index
+    if write_result:
+        save_lsh_runs(write_df = lsh_run_df, num_runs = num_runs,
+            hash_size = hash_size, vp_list = vp_list,
+            base_seed = base_seed)
+
+
+def save_lsh_runs(write_df, num_runs, hash_size, vp_list, base_seed,
+    base_path = CRUNCHBASE_2020_PATH, subdir_name = "LSH-Runs"):
+    save_dir = base_path / subdir_name
+    if not save_dir.exists():
+        save_dir.mkdir(parents = True, exist_ok = True)
+    pt1 = f"{num_runs}runs-{hash_size}bit"
+    pt2 = f"{len(vp_list)}vps-seed{'NA' if base_seed is None else base_seed}"
+    sv_path = save_dir / f"{pt1}-{pt2}.tsv"
+    print(f"Saving {len(write_df)} rows to {sv_path}")
+    write_df.to_csv(path_or_buf = sv_path, sep = "\t", index = False,
+        header = True)
+
+
 if __name__ == "__main__":
     
+    N_RUNS = 100
     N_BITS = 8
-    SEED = 666
-    TOP_N = 20
+    INIT_SEED = 1024
 
     base_df = get_crunchbase2020_data()
     base_vectorizer = CountVectorizer(lowercase = True,
         token_pattern = r"(?u)\b\w\w+\b", min_df = 3,
         stop_words = "english")
-    documents = base_df["document"].values.tolist()
 
-    lsh_matrix, lsh_vocab = create_company_lsh_inputs(doc_list = documents, 
-        doc_vectorizer = base_vectorizer)
-    lsh_tbl = create_lsh_table(doc_matrix = lsh_matrix, 
-        hash_size = N_BITS, proj_seed = SEED)
-    vp_matrix, vp_keys = create_value_prop_lsh_inputs(vp_list = VALUE_PROPS,
-        fitted_vectorizer = base_vectorizer, hash_size = N_BITS, 
-        proj_seed = SEED)
+    aggregate_lsh_runs(crunchbase_df = base_df, vp_list = VALUE_PROPS, 
+        lsh_vectorizer = base_vectorizer, num_runs = N_RUNS,
+        hash_size = N_BITS, base_seed = INIT_SEED, 
+        write_result = True) 
 
-    for i, key in enumerate(vp_keys):
-        vp_nonzero_inds = np.nonzero(vp_matrix[i])[1]
-        print(f"Value Prop {i + 1}: {VALUE_PROPS[i]}")
-        hash_set_df = get_lsh_member_df(key = key, 
-            hash_table = lsh_tbl, ref_df = base_df)
-        add_simrun_annotations(in_df = hash_set_df, vp_index = i,
-            simrun_seed = SEED)
-        add_common_term_columns(in_df = hash_set_df, doc_matrix = lsh_matrix,
-            vocab_array = lsh_vocab, common_inds = vp_nonzero_inds)
-        add_cosine_similarity(in_df = hash_set_df, doc_matrix = lsh_matrix,
-            vp_vector = vp_matrix[i]) 
-        # ipdb.set_trace()
 
-        # APPEND DF TO BIG LIST OF DFS
-        # MAME NEW DF OF BIG LIST OF DFS
-        # SAVE
-
-        print(f"Fell in hash bucket {key} with {len(hash_set_df)} other companies")
-        tag_freq = get_tag_frequency(in_df = hash_set_df)
-        print("--"*10,"\n")
-
-        term_prev = get_term_prevalence(in_df = hash_set_df, 
-            doc_matrix = lsh_matrix, vocab_array = lsh_vocab)
-        print("--"*10,"\n")
-
-        display_top_cb_rank_companies(in_df = hash_set_df, n_display = TOP_N,
-            doc_matrix = lsh_matrix, vocab_array = lsh_vocab,
-            vp_term_inds = vp_nonzero_inds)
-
-        display_cosine_similar_companies(in_df = base_df, n_display = TOP_N, 
-            vp_vector = vp_matrix[i], doc_matrix = lsh_matrix,
-            vocab_array = lsh_vocab, vp_term_inds = vp_nonzero_inds,
-            compare_hash_keys = True, comparison_key_list = vp_keys,
-            hash_size = N_BITS, proj_seed = SEED)
 
