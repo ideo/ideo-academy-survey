@@ -20,7 +20,7 @@ VP_COLORS = {
     "Value Prop 3": "green",
     "Value Prop 4": "red"
 }
-
+MULTI_LSH_PLOTS_PATH = CRUNCHBASE_PLOTS_PATH / "multiLSH-100runs-seed1024"
 
 def weighted_mean(val_and_weight_tuple):
     '''Explicitly designed to be used as an estimator within seaborn's barplot
@@ -116,8 +116,8 @@ def get_title_annotation(filter_dict):
 
 
 def plot_industry_frequency(plot_df, vp_name, filter_dict, industry_order,
-    save_plot = True, base_path = CRUNCHBASE_PLOTS_PATH, 
-    subdir_name = "multiLSH-100runs-seed1024/industry-freq"):
+    save_plot = True, base_path = MULTI_LSH_PLOTS_PATH,
+    subdir_name = "industry-freq"):
     sns.set_style("whitegrid")
     f_type = filter_dict["type"]
     f_val = filter_dict
@@ -147,8 +147,9 @@ def plot_industry_frequency(plot_df, vp_name, filter_dict, industry_order,
         plt.savefig(full_path)
     plt.close()
 
+
 def make_industry_frequency_plots(lsh_run_df, list_of_filter_dicts,
-    base_path = CRUNCHBASE_PLOTS_PATH / "multiLSH-100runs-seed1024", 
+    base_path = MULTI_LSH_PLOTS_PATH,
     subdir_name = "industry-freq"):
     value_props = lsh_run_df.value_prop.unique().tolist()
     for vp in value_props:
@@ -161,15 +162,82 @@ def make_industry_frequency_plots(lsh_run_df, list_of_filter_dicts,
                 industry_order = plot_order, filter_dict = params)  
 
 
+def make_risk_profile_df(lsh_run_df, focus_valprop):
+    simrun_risk_rows = []
+    risk_cols = ["revenue_note", "recent_funding", "recent_founding"]
+    vp_df = lsh_run_df.loc[lsh_run_df.value_prop == focus_valprop]
+    for seed in vp_df.sim_seed.unique().tolist():
+        seed_df = vp_df.loc[vp_df.sim_seed == seed]
+        simrun_weight = len(seed_df)
+        for risk in risk_cols:
+            tally_df = seed_df[risk].value_counts() / simrun_weight
+            for risk_tag, risk_pct in tally_df.to_dict().items():
+                risk_row = {
+                    "risk": risk_tag,
+                    "seed": seed, 
+                    "value_prop": focus_valprop,
+                    "pct": risk_pct,
+                    "pct_and_weight": (risk_pct, simrun_weight)
+                }
+                simrun_risk_rows.append(risk_row)
+    return pd.DataFrame(data = simrun_risk_rows)
+
+
+def plot_risk_profile(plot_df, vp_name, save_plot = True,
+    base_path = MULTI_LSH_PLOTS_PATH,
+    subdir_name = "risk-profile"):
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize = (12,8))
+    g = sns.barplot(x = "risk", y = "pct_and_weight", data = plot_df,
+        color = VP_COLORS[vp_name], orient = "v", alpha = 0.4, ax = ax,
+        ci = 95, estimator = weighted_mean, n_boot = 1000)
+    sns.despine()
+    ax.set_xlabel("Risk Factor")
+    ax.set_ylabel("Proportion of LSH Bucket")
+    ax.set_xticklabels(ax.get_xticklabels(), 
+        rotation = 45,
+        horizontalalignment = "right")
+    pct_ax = ticker.PercentFormatter(xmax = 1.0, decimals = 0)
+    ax.yaxis.set_major_formatter(pct_ax)
+    plt.suptitle(f"Industry Frequency across 100 LSH buckets: {vp_name}")
+    plt.tight_layout()
+    if save_plot:
+        save_dir = base_path / subdir_name
+        if not save_dir.exists():
+            save_dir.mkdir(parents = True, exist_ok = True)
+        vp_info = vp_name.replace(" ","_")
+        full_path = save_dir / f"{vp_info}.png"
+        print(f"Saving plot to {full_path}")
+        plt.savefig(full_path)
+    plt.close()
+
+
+def make_risk_profile_plots(lsh_run_df, base_path = MULTI_LSH_PLOTS_PATH,
+    subdir_name = "risk-profile"):
+    vp_list = lsh_run_df.value_prop.unique().tolist()
+    for vp in vp_list:
+        risk_df = make_risk_profile_df(lsh_run_df = lsh_run_df, 
+            focus_valprop = vp)
+        plot_risk_profile(plot_df = risk_df, vp_name = vp)
+
 if __name__ == "__main__":
     
     lsh_run_df = pd.read_table(LSH_AGG_PATH)
     base_df = get_crunchbase2020_data()
     
     # INDUSTRY FREQUENCY PLOTS
-    FILTER_DICTS = [{"type": "avg", "val": 0.05}, {"type": "count", "val":40}]
-    make_industry_frequency_plots(lsh_run_df = lsh_run_df, 
-        list_of_filter_dicts = FILTER_DICTS)
+    # FILTER_DICTS = [{"type": "avg", "val": 0.05}, {"type": "count", "val":40}]
+    # make_industry_frequency_plots(lsh_run_df = lsh_run_df, 
+    #     list_of_filter_dicts = FILTER_DICTS)
+
+
+
+    #RISK PROFILE PLOTS
+    make_risk_profile_plots(lsh_run_df = lsh_run_df)
+
+
+
+
 
 
     # DEPRECATED - MIGHT TRY TO REPLACE WITH GEPHI GRAPH
