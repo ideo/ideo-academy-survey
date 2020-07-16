@@ -30,29 +30,6 @@ def weighted_mean(val_and_weight_tuple):
     return (val * weight).sum()/weight.sum()
 
 
-def get_company_to_value_prop_match_df(lsh_run_df):
-    '''May be deprecated ...
-    '''
-    agg_dict = {
-        "value_prop": lambda x: list(set(x)),
-        "org_name": "max",
-        "org_url": "count",
-        "description": "max",
-        "industry_tags": "max",
-        "cb_rank": "max" 
-    }
-    rnm_dict = {
-        "org_url": "overall_frequency",
-        "value_prop": "vps_matched"
-    }
-    print("Aggregating LSH results by company ...")
-    match_df = lsh_run_df.groupby(by = "company_index").agg(agg_dict)
-    match_df.rename(columns = rnm_dict, inplace = True)
-    match_df["num_vps_matched"] = match_df.vps_matched.apply(len)
-    match_df["vps_matched"] = match_df.vps_matched.apply(lambda y: " ".join(y))
-    return match_df
-
-
 def make_industry_frequency_df(lsh_run_df, focus_valprop):
     simrun_freq_rows = []
     vp_df = lsh_run_df.loc[lsh_run_df.value_prop == focus_valprop]
@@ -220,17 +197,15 @@ def make_risk_profile_plots(lsh_run_df, base_path = MULTI_LSH_PLOTS_PATH,
             focus_valprop = vp)
         plot_risk_profile(plot_df = risk_df, vp_name = vp)
 
+
 if __name__ == "__main__":
     
     lsh_run_df = pd.read_table(LSH_AGG_PATH)
-    base_df = get_crunchbase2020_data()
     
     # INDUSTRY FREQUENCY PLOTS
-    # FILTER_DICTS = [{"type": "avg", "val": 0.05}, {"type": "count", "val":40}]
-    # make_industry_frequency_plots(lsh_run_df = lsh_run_df, 
-    #     list_of_filter_dicts = FILTER_DICTS)
-
-
+    FILTER_DICTS = [{"type": "avg", "val": 0.05}, {"type": "count", "val":40}]
+    make_industry_frequency_plots(lsh_run_df = lsh_run_df, 
+        list_of_filter_dicts = FILTER_DICTS)
 
     #RISK PROFILE PLOTS
     make_risk_profile_plots(lsh_run_df = lsh_run_df)
@@ -240,20 +215,3 @@ if __name__ == "__main__":
 
 
 
-    # DEPRECATED - MIGHT TRY TO REPLACE WITH GEPHI GRAPH
-    # affinity_df = get_company_to_value_prop_match_df(lsh_run_df)
-    
-    # ipdb.set_trace()
-    
-    # # An example of displaying companies that only matched with one company
-    # # but matched four times.
-    # singular_vp_cond = (affinity_df.num_vps_matched == 1)
-    # four_match_cond = (affinity_df.overall_frequency == 4)
-    # results_df = affinity_df.loc[singular_vp_cond & four_match_cond]
-    # for i, j in enumerate(results_df.sort_values(by = "vps_matched").index):
-    #     c = results_df.at[j, "org_name"]
-    #     vp = results_df.at[j, "vps_matched"]
-    #     print(f"{c} only ever matched with {vp} and matched four times\n")
-    #     display_company_info(rank = i + 1, df_index = j, info_df = base_df)
-    #     print()
-    # ipdb.set_trace()
