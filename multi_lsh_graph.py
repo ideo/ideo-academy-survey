@@ -3,53 +3,96 @@ import pathlib
 import pandas as pd 
 
 from lsh_with_value_props import display_company_info
-from preprocess_crunchbase import get_crunchbase2020_data
-from settings import CRUNCHBASE_2020_PATH
+from settings import CRUNCHBASE_2020_PATH, VALUE_PROPS
 
 
 LSH_AGG_PATH = CRUNCHBASE_2020_PATH / "LSH-Runs/100runs-8bit-4vps-seed1024.tsv"
 LSH_GRAPH_DIR = CRUNCHBASE_2020_PATH / "Graph-Files"
 
 
-def get_company_to_value_prop_match_df(lsh_run_df):
-    '''May be deprecated ...
+def get_value_prop_node_id(vp_index, reference_index):
+    '''Company nodes have built-in IDs, because of the way we saved them. For 
+    value prop nodes, what we do instead is add the index of the value prop to 
+    some constant reference index. Generally, the maximum of all company
+    indices.
     '''
-    agg_dict = {
-        "value_prop": lambda x: list(set(x)),
-        "org_name": "max",
-        "org_url": "count",
-        "description": "max",
-        "industry_tags": "max",
-        "cb_rank": "max" 
-    }
-    rnm_dict = {
-        "org_url": "overall_frequency",
-        "value_prop": "vps_matched"
-    }
-    print("Aggregating LSH results by company ...")
-    match_df = lsh_run_df.groupby(by = "company_index").agg(agg_dict)
-    match_df.rename(columns = rnm_dict, inplace = True)
-    match_df["num_vps_matched"] = match_df.vps_matched.apply(len)
-    match_df["vps_matched"] = match_df.vps_matched.apply(lambda y: " ".join(y))
-    return match_df
+    return reference_index + vp_index + 1
 
 
-def make_lsh_nodes(input_df, save_csv = True, csv_dir = LSH_GRAPH_DIR):
-    '''Just needs id and label. Depending on how this ends up looking 
-    in Gephi, I may want to add a more detailed label later.
+def get_value_prop_description(vp_index, vp_descriptions = VALUE_PROPS):
+    '''The description for company nodes 
     '''
+    return vp_descriptions[vp_index].strip()
+
+
+def parse_revenue_note(revenue_note):
+    if pd.isnull(revenue_note):
+        return "Unknown"
+    if "Under" in revenue_note:
+        return "Less than $50 Million"
+    return "Over $50 Million"
+
+
+def parse_activity_note(funding_note):
+    if pd.isnull(funding_note):
+        return "Unknown"
+    return "Within the past year"
+
+
+def get_node_info(node_id, info_df, vp_label = None, vp_descrip = None):
+    '''Key errors imply that this is a value prop node instead of a company
+    node. Company nodes are handled a little different.
+    '''
+    try:
+        node_label = info_df.at[node_id, "org_name"]
+        node_dscrip = info_df.at[node_id, "description"]
+        sectors = info_df.at[node_id, "industry_tags"]
+        cb = info_df.at[node_id, "cb_rank"]
+        revenue = info_df.at[node_id, "revenue_note"]
+        funded = info_df.at[node_id, "recent_funding"]
+        founded = info_df.at[node_id, "recent_founding"]
+    except KeyError as e:
+        return {
+            "id": node_id,
+            "label": vp_label,
+            "description": vp_descrip, 
+            "industries": "N/A",
+            "crunchbase rank": -999,
+            "revenue category": "N/A",
+            "recent funding": "N/A",
+            "founded": "N/A"
+        }
+    return {
+        "id": node_id,
+        "label": node_label, 
+        "description": node_dscrip,
+        "industries": "Unknown" if pd.isnull(sectors) else sectors,
+        "crunchbase rank": -999 if pd.isnull(cb) else cb, 
+        "revenue category": parse_revenue_note(revenue),
+        "recent funding": parse_activity_note(funded),
+        "founded": parse_activity_note(founded) 
+    }
+
+
+def make_lsh_nodes(input_df, vp_descriptions = VALUE_PROPS,
+    save_csv = True, csv_dir = LSH_GRAPH_DIR):
     unique_vps = input_df.value_prop.unique().tolist()
     company_df = input_df.drop_duplicates(subset = "company_index")
     max_company_node = company_df.company_index.max()
     company_df.set_index(keys = "company_index", drop = True, inplace = True)
     node_rows = []
     for c_index in company_df.index.tolist():
-        c_name = company_df.at[c_index, "org_name"]
-        node_rows.append({"id": c_index, "label": c_name})
+        node_info = get_node_info(node_id = c_index, info_df = company_df)
+        node_rows.append(node_info)
     print(f"Just stored {len(node_rows)} company nodes")
-    for i, vp in enumerate(unique_vps):
-        v_index = max_company_node + i + 1
-        node_rows.append({"id": v_index, "label": vp})
+    for vp_index, vp_label in enumerate(unique_vps):
+        vp_node_id = get_value_prop_node_id(vp_index = vp_index,
+            reference_index = max_company_node)
+        vp_text = get_value_prop_description(vp_index = vp_index,
+            vp_descriptions = vp_descriptions)
+        node_info = get_node_info(node_id = vp_node_id, info_df = company_df,
+            vp_label = vp_label, vp_descrip = vp_text)
+        node_rows.append(node_info)
     print(f"Retrieved info for {len(node_rows)} nodes total")
     node_df = pd.DataFrame(data = node_rows)
     if save_csv:
@@ -62,9 +105,6 @@ def make_lsh_nodes(input_df, save_csv = True, csv_dir = LSH_GRAPH_DIR):
 
 
 def make_lsh_edges(input_df, save_csv = True, csv_dir = LSH_GRAPH_DIR):
-    '''Needs columns source and target with the values as node ids. I am assuming you also need to add
-    some kind of weight column
-    '''
     unique_vps = input_df.value_prop.unique().tolist()
     max_company_node = input_df.company_index.max()
     grp_cols = ["value_prop", "company_index"]
@@ -92,24 +132,10 @@ def make_lsh_edges(input_df, save_csv = True, csv_dir = LSH_GRAPH_DIR):
 if __name__ == "__main__":
 
     lsh_run_df = pd.read_table(LSH_AGG_PATH)
-    node_df = make_lsh_nodes(input_df = lsh_run_df, save_csv = True)
-    edge_df = make_lsh_edges(input_df = lsh_run_df, save_csv = True)
-
+    node_df = make_lsh_nodes(input_df = lsh_run_df, vp_descriptions = VALUE_PROPS,
+        save_csv = True, csv_dir = LSH_GRAPH_DIR)
+    edge_df = make_lsh_edges(input_df = lsh_run_df, save_csv = True,
+        csv_dir = LSH_GRAPH_DIR)
     # ipdb.set_trace()
-    # PROLLY DEPRECATED
-    # affinity_df = get_company_to_value_prop_match_df(lsh_run_df)
-    # base_df = get_crunchbase2020_data()
-    # ipdb.set_trace()
+ 
     
-    # # An example of displaying companies that only matched with one company
-    # # but matched four times.
-    # singular_vp_cond = (affinity_df.num_vps_matched == 1)
-    # four_match_cond = (affinity_df.overall_frequency == 4)
-    # results_df = affinity_df.loc[singular_vp_cond & four_match_cond]
-    # for i, j in enumerate(results_df.sort_values(by = "vps_matched").index):
-    #     c = results_df.at[j, "org_name"]
-    #     vp = results_df.at[j, "vps_matched"]
-    #     print(f"{c} only ever matched with {vp} and matched four times\n")
-    #     display_company_info(rank = i + 1, df_index = j, info_df = base_df)
-    #     print()
-    # ipdb.set_trace()
